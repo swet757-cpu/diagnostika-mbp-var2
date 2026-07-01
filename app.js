@@ -36,7 +36,7 @@ const questions = [
   q(16, "profit", "Налоги становятся неожиданностью: учитываются ли в прибыли зарплата, налоги, аренда, кредиты и управленческие расходы?", scored(["Да", 0], ["Частично", 1], ["Нет", 2], ["Не знаю", 2])),
   q(17, "profit", "Сложно принимать решение: нанимать людей, покупать технику, брать кредит?", scored(["Нет", 0], ["Иногда", 1], ["Да", 2])),
 
-  q(18, "reports", "Знаете ли вы об отчетах: платежный календарь, ДДС, ОПиУ, управленческий баланс?", scored(["Да", 0], ["Частично", 1], ["Нет", 2])),
+  q(18, "reports", "Используете ли вы в работе отчеты: платежный календарь, ДДС, ОПиУ, управленческий баланс?", scored(["Да", 0], ["Частично", 1], ["Нет", 2])),
   multi(19, "reports", "Что для вас важнее всего сейчас?", ["Контроль денег", "Прибыль", "Долги", "Рост бизнеса", "Порядок в учете"]),
   multi(20, "reports", "Какой результат вы хотите получить от управленческого учета?", ["Видеть деньги", "Понимать прибыль", "Убрать хаос", "Контролировать платежи", "Принимать решения"]),
 ];
@@ -144,7 +144,7 @@ function renderQuestion() {
       ? "влияет на риск"
       : "профиль";
   const conditionalNote = question.number === 15 && answers[4] === "1"
-    ? "<p class=\"note\">В анкете вар2 этот вопрос не влияет на баллы, если в бизнесе одно направление.</p>"
+    ? "<p class=\"note\">В анкете вар3 этот вопрос не влияет на баллы, если в бизнесе одно направление.</p>"
     : "";
 
   panel.innerHTML = `
@@ -235,12 +235,13 @@ function renderResult() {
 
   resultContent.innerHTML = `
     <div class="result-box">
-      <p class="eyebrow">Итог диагностики вар2</p>
+      <p class="eyebrow">Итог диагностики вар3</p>
       <h3>${level.title}</h3>
       <p>${level.text}</p>
       <div class="metric"><span>Баллы риска</span><strong>${score} из ${maxScore}</strong></div>
       <div class="metric"><span>Оценено вопросов</span><strong>${answeredScored} из ${scoredQuestions.length}</strong></div>
       <div class="metric"><span>Приоритет</span><strong>${formatValue(answers[19])}</strong></div>
+      <div class="metric"><span>Результат</span><strong>${formatValue(answers[20])}</strong></div>
     </div>
     <div class="result-box">
       <p class="eyebrow">Что предложить</p>
@@ -315,6 +316,12 @@ function getRiskLevel(score, maxScore) {
 }
 
 function buildRecommendations() {
+  const decisiveReports = getDecisiveReports();
+
+  if (decisiveReports.length) {
+    return decisiveReports.map(formatReportRecommendation);
+  }
+
   const result = [];
 
   if (hasRisk([7, 8, 9, 10, 11])) {
@@ -329,12 +336,6 @@ function buildRecommendations() {
   if (hasRisk([15]) || answers[4] === "2-3" || answers[4] === "Более 3") {
     result.push("ОПиУ по направлениям, проектам или объектам.");
   }
-  if (hasRisk([13])) {
-    result.push("Управленческий баланс: активы, обязательства, капитал, займы и задолженность.");
-  }
-  if (hasRisk([16])) {
-    result.push("Налоговый календарь и предварительное согласование сумм к оплате.");
-  }
   if (hasRisk([12, 18])) {
     result.push("Финансовый цикл: неделя, месяц, квартал, регулярные отчеты для собственника.");
   }
@@ -343,6 +344,51 @@ function buildRecommendations() {
   }
 
   return result.length ? result : ["Проверка действующих отчетов и точности управленческих данных."];
+}
+
+function getDecisiveReports() {
+  const reports = [];
+  const add = (...items) => {
+    items.forEach((item) => {
+      if (!reports.includes(item)) reports.push(item);
+    });
+  };
+
+  normalizeAnswer(answers[19]).forEach((value) => {
+    if (value === "Контроль денег") add("ПК");
+    if (value === "Долги") add("ПК");
+    if (value === "Прибыль") add("ОПиУ");
+    if (value === "Рост бизнеса") add("ОПиУ", "ДДС", "Управленческий баланс");
+    if (value === "Порядок в учете") add("ПК", "ДДС", "ОПиУ");
+  });
+
+  normalizeAnswer(answers[20]).forEach((value) => {
+    if (value === "Видеть деньги") add("ДДС");
+    if (value === "Понимать прибыль") add("ОПиУ");
+    if (value === "Убрать хаос") add("ПК");
+    if (value === "Контролировать платежи") add("ПК");
+    if (value === "Принимать решения") add("ПК", "ДДС", "ОПиУ");
+  });
+
+  return reports;
+}
+
+function normalizeAnswer(value) {
+  if (Array.isArray(value)) return value;
+  return value ? [value] : [];
+}
+
+function formatReportRecommendation(report) {
+  const details = {
+    "ПК": "Платежный календарь: контроль денег, обязательных платежей и ближайших выплат.",
+    "ДДС": "Отчет ДДС по статьям: поступления, оплаты, налоги, кредиты и вывод денег.",
+    "ОПиУ": "Управленческий ОПиУ: выручка, расходы, прибыль и рентабельность.",
+    "Управленческий баланс": "Управленческий баланс: активы, обязательства, капитал, займы и задолженность.",
+  };
+
+  if (answers[18] === "Да") return `Проверить и донастроить ${details[report]}`;
+  if (answers[18] === "Частично") return `Доработать ${details[report]}`;
+  return `Настроить ${details[report]}`;
 }
 
 function hasRisk(numbers) {
@@ -358,18 +404,20 @@ function hasRisk(numbers) {
 function buildNextStep(score, maxScore) {
   const priority = formatValue(answers[19]) || "определить главный приоритет";
   const result = formatValue(answers[20]) || "зафиксировать ожидаемый результат";
+  const reports = getDecisiveReports();
+  const reportList = reports.length ? reports.join(", ") : "выбранные отчеты";
   const percent = maxScore ? score / maxScore : 0;
 
   if (percent <= 0.25) {
-    return `Провести аудит текущих отчетов и сверить методику ДДС, ОПиУ и баланса. Приоритет: ${priority}. Результат: ${result}.`;
+    return `Провести аудит текущих отчетов и сверить методику по направлению: ${reportList}. Приоритет: ${priority}. Результат: ${result}.`;
   }
   if (percent <= 0.5) {
-    return `Начать с платежного календаря и ДДС, затем добавить ОПиУ и регулярный финансовый цикл. Приоритет: ${priority}. Результат: ${result}.`;
+    return `Начать с выбранного набора отчетов: ${reportList}, затем закрепить регулярный финансовый цикл. Приоритет: ${priority}. Результат: ${result}.`;
   }
   if (percent <= 0.75) {
-    return `Собрать данные по банку, кассе, договорам, дебиторской и кредиторской задолженности, затем внедрить полный пакет отчетов. Приоритет: ${priority}. Результат: ${result}.`;
+    return `Собрать данные по банку, кассе, договорам, дебиторской и кредиторской задолженности, затем внедрить: ${reportList}. Приоритет: ${priority}. Результат: ${result}.`;
   }
-  return `Сначала восстановить финансовую картину и задолженность, затем запустить платежный календарь, ДДС, ОПиУ, баланс и регламент контроля. Приоритет: ${priority}. Результат: ${result}.`;
+  return `Сначала восстановить финансовую картину и задолженность, затем запустить: ${reportList} и регламент контроля. Приоритет: ${priority}. Результат: ${result}.`;
 }
 
 function formatValue(value) {
